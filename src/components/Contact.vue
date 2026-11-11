@@ -1,5 +1,5 @@
 <script setup>
-    import {ref} from 'vue'
+    import {ref, onMounted, onBeforeUnmount} from 'vue'
     import {Notyf} from 'notyf'
     import axios from 'axios'
     import 'notyf/notyf.min.css';
@@ -7,14 +7,19 @@
     const notyf = new Notyf();
 
     const WEB3FORM_ACCESS_KEY = "63f42661-d50b-4260-a0d1-ea6a221cf429";
-
-    const subject = "New Message from Portfolio Contact Form"
+    const SITE_KEY = "6LcNkBouAAAAAIj3pRRaFcPZGfvCFm8wrbXE4w_2";
+    const subject = "New Message from Portfolio Contact Form";
     const name = ref("");
     const email = ref("");
     const message = ref("");
     const isLoading = ref(false);
 
     const submitForm = async() => {
+        if (!recaptchaToken.value) {
+            notyf.error('Please verify that you are not a robot.');
+            return;
+        }
+
         isLoading.value = true
 
         try{
@@ -49,6 +54,62 @@
 
     }
 
+    const recaptchaContainer = ref(null);
+    const recaptchaWidgetId = ref(null);
+    const recaptchaToken = ref('');
+
+    // Callback called by reCAPTCHA when successful
+    function onRecaptchaSuccess(token) {
+      recaptchaToken.value = token;
+    }
+
+    // Callback when expired
+    function onRecaptchaExpired() {
+      recaptchaToken.value = '';
+    }
+
+    // Function to render the reCAPTCHA widget
+    function renderRecaptcha() {
+      if (!window.grecaptcha) {
+        console.error('reCAPTCHA not loaded');
+        return;
+      }
+
+      recaptchaWidgetId.value = window.grecaptcha.render(recaptchaContainer.value, {
+        sitekey: SITE_KEY,
+        size: 'normal', // or 'compact'
+        callback: onRecaptchaSuccess,
+        'expired-callback': onRecaptchaExpired,
+      });
+    }
+
+    // Function to reset reCAPTCHA 
+    function resetRecaptcha() {
+      if (recaptchaWidgetId.value !== null) {
+        window.grecaptcha.reset(recaptchaWidgetId.value);
+        recaptchaToken.value = '';
+      }
+    }
+
+
+
+    onMounted(() => {
+      // This code waits for the Google reCAPTCHA library to load, then renders the reCAPTCHA widget using onMounted hook. 
+      // The widget is rendered with grecaptcha.render(), which requires a sitekey. 
+      // Callback functions handle success and expiration events. 
+      // reCAPTCHA is reset upon form submission to clear the token.
+      const interval = setInterval(() => {
+        if (window.grecaptcha && window.grecaptcha.render) {
+          renderRecaptcha();
+          clearInterval(interval);
+        }
+      }, 100);
+
+      onBeforeUnmount(() => {
+        clearInterval(interval);
+      });
+    });
+
 </script>
 
 <template>
@@ -78,6 +139,10 @@
                                 </div>
                                 <button type="submit" class="submit-btn pl-5 pr-5" :disabled="isLoading">{{ isLoading ? "Sending...": "Subbmit"}}</button>
                             </div>
+                            <!-- recaptcha checkbox -->
+                            <div class="d-flex justify-content-end mt-2">
+                                <div ref="recaptchaContainer"></div>
+                            </div>                            
                         </form>
                         
                     </div>
